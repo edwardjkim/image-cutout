@@ -6,3 +6,7 @@ __pycache__/
 build/
 dist/
 cutout.egg-info/
+
+# data files
+*.fits
+*.header
