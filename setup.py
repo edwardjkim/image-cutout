@@ -12,8 +12,6 @@ setup(
     },
     install_requires=[
         'requests',
-        'numpy',
-        'pandas',
         'montage-wrapper'
     ]
 )
