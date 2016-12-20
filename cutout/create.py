@@ -8,7 +8,7 @@ from cutout.fetch_sdss import fits_file_name, single_field_image
 from cutout.sex import run_sex
 
 
-def get_cutout(catalog, images, bands, size=64, save_dir="result"):
+def get_cutout(catalog, images, bands, size=64):
     """
     Takes a pandas dataframe with columns 'XPEAK_IMAGE' and 'YPEAK_IMAGE'
     and saves cutout images in save_dir.
@@ -71,7 +71,7 @@ def run_all(rerun, run, camcol, field):
     bands = [b for b in "ugriz"]
 
     try:
-        single_field_image(rerun, run, camcol, field, bands='agriz')
+        single_field_image(rerun, run, camcol, field)
     except:
         raise
 
@@ -83,14 +83,25 @@ def run_all(rerun, run, camcol, field):
     reference_image = fits_file_name(rerun, run, camcol, field, 'r')
     align_images(images, reference_image)
 
+    for image in images:
+        os.remove(images)
+
     catalog = run_sex(reference_image)
+
     images = [
         image.replace(".fits", ".registered.fits")
         if image != reference_image else reference_image
         for image in images
     ]
     result = get_cutout(catalog, images, bands)
-    np.save(reference_image.replace(".fits", ".npy"), result)
+
+    for image in images:
+        os.remove(images)
+
+    filename = fits_file_name(rerun, run, camcol, field, 'r')
+    filename = os.path.join("result", filename.replace(".fits", ".npy"))
+
+    np.save(filename, result)
 
 
 def run_parallel(df):
@@ -104,16 +115,16 @@ def run_parallel(df):
     rank = comm.Get_rank()
     size = comm.Get_size()
 
+    start = len(df) // size * rank
+    end = len(df) // size * (rank + 1)
+    df = df[start:end]
+
     if rank == 0:
         print("Running on {} cores...\n".format(size))
 
-    start = int(rank / size * len(df))
-    end = int((rank + 1) / size * len(df))
-    df = df[start:end]
-
-    for idx, row in df:
+    for idx, row in df.iterrows():
         print(
-            "Core {}: {0}-{1}-{2}-{3}".format(
+            "Core {0}: Procesing {1}-{2}-{3}-{4}".format(
                 rank, row["rerun"], row["run"], row["camcol"], row["field"]
             )
         )

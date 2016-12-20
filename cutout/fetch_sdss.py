@@ -2,6 +2,7 @@ import os
 import requests
 import bz2
 from time import sleep
+import numpy as np
 import pandas as pd
 
 
@@ -69,7 +70,6 @@ def single_field_image(rerun, run, camcol, field,
                     image = bz2.decompress(resp.content)
                     f.write(image)
 
-                print("Downloaded {}".format(file_name))
                 break
 
             else:
@@ -93,7 +93,11 @@ def sdss_fields(filename, shuffle=True):
     Columns: run,rerun,camcol,field
     """
 
-    df = pd.read_csv(filename, header=0)
+    df = pd.read_csv(
+        filename,
+        header=0,
+        dtype={"run": np.int, "rerun": np.int, "camcol": np.int, "field": np.int}
+    )
     if shuffle:
         df = df.sample(frac=1).reset_index(drop=True)
 

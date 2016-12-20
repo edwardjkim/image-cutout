@@ -25,7 +25,7 @@ def main(args=None):
             df = sdss_fields("fetch.csv")
             run_parallel(df)
 
-    if args[0] == "fetch":
+    elif args[0] == "fetch":
         if os.path.exists("fetch.csv"):
             df = sdss_fields("fetch.csv")
         elif len(args[1:]) == 0:
