@@ -10,3 +10,8 @@ cutout.egg-info/
 # data files
 *.fits
 *.header
+*.npy
+*.cat
+*.sex
+*.conv
+*.param

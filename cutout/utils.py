@@ -36,3 +36,33 @@ def align_images(images, reference, save_dir=None):
 
     return None
 
+
+def nanomaggie_to_luptitude(array, band):
+    """
+    Converts nanomaggies (flux) to luptitudes (magnitude).
+
+    http://www.sdss.org/dr12/algorithms/magnitudes/#asinh
+    http://arxiv.org/abs/astro-ph/9903081
+
+    Parameters
+    ----------
+    array: A numpy array.
+    band: One of 'u', 'g', 'r', 'i' or 'z'.
+
+    Returns
+    -------
+    A float
+    """
+
+    b = {
+        'u': 1.4e-10,
+        'g': 0.9e-10,
+        'r': 1.2e-10,
+        'i': 1.8e-10,
+        'z': 7.4e-10
+    }
+    nanomaggie = array * 1.0e-9 # fluxes are in nanomaggies
+
+    luptitude = -2.5 / np.log(10) * (np.arcsinh((nanomaggie / (2 * b[band]))) + np.log(b[band]))
+    
+    return luptitude
