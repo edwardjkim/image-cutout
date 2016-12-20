@@ -2,6 +2,7 @@ import os
 import requests
 import bz2
 from time import sleep
+import pandas as pd
 
 
 def fits_file_name(rerun, run, camcol, field, band):
@@ -50,6 +51,8 @@ def single_field_image(rerun, run, camcol, field,
     for band in bands:
 
         url = field_image_url(rerun, run, camcol, field, band, base_url)
+        file_name = fits_file_name(rerun, run, camcol, field, band)
+        file_path = os.path.join(save_dir, file_name)
 
         for _ in range(ntry):
 
@@ -62,9 +65,6 @@ def single_field_image(rerun, run, camcol, field,
                 
             if resp.status_code == 200:
 
-                file_name = fits_file_name(rerun, run, camcol, field, band)
-                file_path = os.path.join(save_dir, file_name)
-
                 with open(file_path, "wb") as f:
                     image = bz2.decompress(resp.content)
                     f.write(image)
@@ -73,6 +73,28 @@ def single_field_image(rerun, run, camcol, field,
                 break
 
             else:
-                print("HTTP Status: {}".format(resp.status_code))
+                print("{}: HTTP {}".format(file_name, resp.status_code))
                 sleep(1)
 
+    files = [
+        fits_file_name(rerun, run, camcol, field, band)
+        for band in bands
+    ]
+
+    if all(os.path.exists(f) for f in files):
+        return
+    else:
+        raise Exception
+
+
+def sdss_fields(filename, shuffle=True):
+    """
+    Return all SDSS DR12 fields.
+    Columns: run,rerun,camcol,field
+    """
+
+    df = pd.read_csv(filename, header=0)
+    if shuffle:
+        df = df.sample(frac=1).reset_index(drop=True)
+
+    return df
