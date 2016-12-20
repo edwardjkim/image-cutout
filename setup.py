@@ -14,7 +14,6 @@ setup(
         'requests',
         'numpy',
         'pandas',
-        'astropy',
         'montage-wrapper'
     ]
 )
