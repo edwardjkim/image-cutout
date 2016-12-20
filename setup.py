@@ -10,4 +10,11 @@ setup(
             'cutout = cutout.__main__:main'
         ]
     },
+    install_requires=[
+        'requests',
+        'numpy',
+        'pandas',
+        'astropy',
+        'montage-wrapper'
+    ]
 )
