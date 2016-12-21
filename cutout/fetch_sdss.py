@@ -4,6 +4,8 @@ import bz2
 from time import sleep
 import numpy as np
 import pandas as pd
+from astropy.io import fits
+from astropy import wcs
 
 
 def fits_file_name(rerun, run, camcol, field, band):
@@ -96,9 +98,115 @@ def sdss_fields(filename, shuffle=True):
     df = pd.read_csv(
         filename,
         header=0,
-        dtype={"run": np.int, "rerun": np.int, "camcol": np.int, "field": np.int}
+        dtype={"rerun": np.int, "run": np.int, "camcol": np.int, "field": np.int}
     )
     if shuffle:
         df = df.sample(frac=1).reset_index(drop=True)
 
     return df
+
+
+def fetch_sdss(filename):
+    """
+    Reads a CSV file and fetches all field images listed in the file.
+    """
+
+    df = sdss_fields(filename)
+
+    for group in df.groupby(["rerun", "run", "camcol", "field"]).groups:
+        single_field_image(*group)
+
+    return None
+
+
+def read_match_csv(filename):
+    """
+    Reads a CSV file with a list of objects to be matched.
+
+    The file should have the following columns:
+    objID,ra,dec,rerun,run,camcol,field
+    """
+
+    dtype = {
+        "objID": "object",
+        "ra": np.float,
+        "dec": np.float,
+        "rerun": np.uint16,
+        "run": np.uint16,
+        "camcol": np.uint16,
+        "field": np.uint16
+    }
+
+    df = pd.read_csv(filename, dtype=dtype)
+
+    return df
+
+
+def single_radec_to_pixel(rerun, run, camcol, field, ra, dec):
+    """
+    Converts world position (RA, DEC) to pixel position.
+
+    Returns
+    -------
+    A tuple of (float, float)
+    """
+
+    fits_file = fits_file_name(rerun, run, camcol, field, 'r')
+    hdulist = fits.open(fits_file)
+    w = wcs.WCS(hdulist[0].header, relax=False)
+    px, py = w.all_world2pix(ra, dec, 1)
+
+    return px.item(), py.item()
+
+
+def radec_to_pixel(filename):
+    """
+    Reads a CSV file with ra, dec columns and converts radec to pixel positions.
+
+    Paramters
+    ---------
+    filename: match.csv
+    """
+
+    df = read_match_csv(filename)
+
+    result = df.copy()
+
+    for idx, row in df.iterrows():
+        px, py = single_radec_to_pixel(
+            row["rerun"], row["run"], row["camcol"], row["field"],
+            row["ra"], row["dec"]
+        )
+        result.loc[idx, "xpixel"] = px
+        result.loc[idx, "ypixel"] = py
+
+    return result
+
+
+def write_assoc_list(filename):
+    """
+    Write .list file by matching objects.
+
+    Parameters
+    ----------
+    filename: match.csv
+    """
+
+    df = radec_to_pixel(filename)
+
+    for idx, row in df.iterrows():
+
+        list_file = fits_file_name(
+            df.loc[idx, "rerun"],
+            df.loc[idx, "run"],
+            df.loc[idx, "camcol"],
+            df.loc[idx, "field"],
+            'r'
+        ).replace(".fits", ".list")
+        with open(list_file, 'a') as fout:
+            fout.write(
+                "{} {} {}\n".format(
+                    idx, df.loc[idx, "xpixel"], df.loc[idx, "ypixel"]
+                )
+            )
+
