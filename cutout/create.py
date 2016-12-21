@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from astropy.io import fits
 from cutout.utils import nanomaggie_to_luptitude, align_images
-from cutout.fetch_sdss import fits_file_name, single_field_image
+from cutout.sdss import fits_file_name, single_field_image
 from cutout.sex import run_sex
 
 
@@ -105,7 +105,7 @@ def run_all(rerun, run, camcol, field):
     np.save(filename, result)
 
 
-def run_parallel(df):
+def parallel_sex(df):
     """
     Parallel mode.
     """

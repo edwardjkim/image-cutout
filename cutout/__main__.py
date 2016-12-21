@@ -1,10 +1,10 @@
 import os
 import sys
 import numpy as np
-from cutout.fetch_sdss import sdss_fields, single_field_image
+from cutout.sdss import sdss_fields, single_field_image
 from cutout.utils import align_images
 from cutout.sex import run_sex
-from cutout.create import get_cutout, run_parallel
+from cutout.create import get_cutout, parallel_sex
 
 
 def main(args=None):
@@ -23,7 +23,7 @@ def main(args=None):
     if args[0] == "parallel":
         if os.path.exists("fetch.csv"):
             df = sdss_fields("fetch.csv")
-            run_parallel(df)
+            parallel_sex(df)
 
     elif args[0] == "fetch":
         if os.path.exists("fetch.csv"):
