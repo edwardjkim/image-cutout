@@ -4,7 +4,7 @@ import numpy as np
 from cutout.sdss import sdss_fields, single_field_image
 from cutout.utils import align_images
 from cutout.sex import run_sex
-from cutout.create import get_cutout, parallel_sex
+from cutout.create import get_cutout, sequential_sex, parallel_sex
 
 
 def main(args=None):
@@ -16,7 +16,7 @@ def main(args=None):
     if len(args) == 0:
         sys.stderr.write(
             "Usage: cutout <subcommand>\n"
-            "Valid subcommands are: parallel, fetch, align, extract\n"
+            "Valid subcommands are: sequential, parallel, fetch, align, extract\n"
         )
         return 1
 
@@ -24,6 +24,11 @@ def main(args=None):
         if os.path.exists("fetch.csv"):
             df = sdss_fields("fetch.csv")
             parallel_sex(df)
+
+    elif args[0] == "sequential":
+        if os.path.exists("fetch.csv"):
+            df = sdss_fields("fetch.csv")
+            sequential_sex(df)
 
     elif args[0] == "fetch":
         if os.path.exists("fetch.csv"):

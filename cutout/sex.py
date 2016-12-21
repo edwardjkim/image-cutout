@@ -5,7 +5,7 @@ import shutil
 import subprocess
 
 
-def run_sex(filename):
+def run_sex(filename, match=False):
     """
     Runs SExtractor.
     """
@@ -17,6 +17,10 @@ def run_sex(filename):
     config_file = filename.replace(".fits", ".sex")
     catalog_name = filename.replace(".fits", ".cat")
 
+    if match:
+        write_assoc_param()
+        list_file = filename.replace(".fits", ".list")
+
     with open("default.sex", "r") as default_sex:
         with open(config_file, "w") as outfile:
             for line in default_sex:
@@ -25,6 +29,12 @@ def run_sex(filename):
                      "CATALOG_NAME     {}".format(catalog_name),
                      line
                  )
+                 if match:
+                    line = re.sub(
+                        r"^ASSOC_NAME\s+sky.list",
+                        "ASSOC_NAME       {}".format(list_file),
+                        line
+                    )
                  outfile.write(line)
     
     subprocess.call(["sex", "-c", config_file, filename])
@@ -72,11 +82,20 @@ def write_default_param(filename="default.param"):
         "YMAX_IMAGE               Maximum y-coordinate among detected pixels                [pixel]\n"
         "XPEAK_IMAGE              x-coordinate of the brightest pixel                       [pixel]\n"
         "YPEAK_IMAGE              y-coordinate of the brightest pixel                       [pixel]\n"
-        "#VECTOR_ASSOC(1)          #ASSOCiated parameter vector"
     ).format()
 
     with open(filename, "w") as f:
         f.write(default_param)
+
+    return None
+
+
+def write_assoc_param(filename="default.param"):
+
+    with open(filename, "a") as f:
+        f.write(
+            "#VECTOR_ASSOC(1)          #ASSOCiated parameter vector"
+        )
 
     return None
 

@@ -105,6 +105,24 @@ def run_all(rerun, run, camcol, field):
     np.save(filename, result)
 
 
+def sequential_sex(df):
+    """
+    Sequential mode.
+    """
+
+    for idx, row in df.iterrows():
+        print(
+            "Procesing {0}-{1}-{2}-{3}".format(
+                row["rerun"], row["run"], row["camcol"], row["field"]
+            )
+        )
+        try:
+            run_all(row["rerun"], row["run"], row["camcol"], row["field"])
+            print("Successfully completed.")
+        except Exception as e:
+            print(e)
+
+
 def parallel_sex(df):
     """
     Parallel mode.
