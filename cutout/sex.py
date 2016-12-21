@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import re
 import shutil
@@ -39,6 +40,9 @@ def run_sex(filename):
     )
 
     catalog["FILE"] = filename
+
+    os.remove(config_file)
+    os.remove(catalog_name)
 
     return catalog
 

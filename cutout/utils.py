@@ -34,6 +34,9 @@ def align_images(images, reference, save_dir=None):
         header=header, exact_size=True, silent_cleanup=True, common=True
     )
 
+    if os.path.exists(header):
+        os.remove(header)
+
     return None
 
 

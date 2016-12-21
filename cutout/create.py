@@ -75,31 +75,32 @@ def run_all(rerun, run, camcol, field):
     except:
         raise
 
-    images = [
+    original_images = [
         fits_file_name(rerun, run, camcol, field, band)
         for band in bands
     ]
 
     reference_image = fits_file_name(rerun, run, camcol, field, 'r')
-    align_images(images, reference_image)
-
-    for image in images:
-        os.remove(image)
+    align_images(original_images, reference_image)
 
     catalog = run_sex(reference_image)
 
-    images = [
+    registered_images = [
         image.replace(".fits", ".registered.fits")
         if image != reference_image else reference_image
-        for image in images
+        for image in original_images
     ]
-    result = get_cutout(catalog, images, bands)
+    result = get_cutout(catalog, registered_images, bands)
 
-    for image in images:
-        os.remove(images)
+    for image in set(original_images + registered_images):
+        if os.path.exists(image):
+            os.remove(image)
 
     filename = fits_file_name(rerun, run, camcol, field, 'r')
     filename = os.path.join("result", filename.replace(".fits", ".npy"))
+
+    if not os.path.exists("result"):
+        os.makedirs("result")
 
     np.save(filename, result)
 
@@ -130,7 +131,7 @@ def run_parallel(df):
         )
         try:
             run_all(row["rerun"], row["run"], row["camcol"], row["field"])
-            print("Core {}: successfully completed.".format(rank))
+            print("Core {}: Successfully completed.".format(rank))
         except Exception as e:
             print("Core {}: {}".format(rank, e))
 
