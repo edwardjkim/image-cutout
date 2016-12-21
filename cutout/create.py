@@ -84,7 +84,7 @@ def run_all(rerun, run, camcol, field):
     align_images(images, reference_image)
 
     for image in images:
-        os.remove(images)
+        os.remove(image)
 
     catalog = run_sex(reference_image)
 

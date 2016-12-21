@@ -40,8 +40,6 @@ def run_sex(filename):
 
     catalog["FILE"] = filename
 
-    print("sex done")
-
     return catalog
 
 
