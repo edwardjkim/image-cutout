@@ -8,7 +8,7 @@ from cutout.sdss import fits_file_name, single_field_image
 from cutout.sex import run_sex
 
 
-def get_cutout(catalog, images, bands, size=64):
+def get_cutout(catalog, images, bands, size=64, match=False):
     """
     Takes a pandas dataframe with columns 'XPEAK_IMAGE' and 'YPEAK_IMAGE'
     and saves cutout images in save_dir.
@@ -29,7 +29,10 @@ def get_cutout(catalog, images, bands, size=64):
 
     for irow, row in catalog.iterrows():
 
-        xpeak, ypeak = row[["XPEAK_IMAGE", "YPEAK_IMAGE"]].values
+        if match:
+            xpeak, ypeak = row[["XPIXEL", "YPIXEL"]].values
+        else:
+            xpeak, ypeak = row[["XPEAK_IMAGE", "YPEAK_IMAGE"]].values
 
         reference = row["FILE"]
 
@@ -63,7 +66,7 @@ def get_cutout(catalog, images, bands, size=64):
     return array
 
 
-def run_all(rerun, run, camcol, field):
+def run_all(rerun, run, camcol, field, match=False):
     """
     Run fetch, align, extract in a single field.
     """
@@ -83,14 +86,14 @@ def run_all(rerun, run, camcol, field):
     reference_image = fits_file_name(rerun, run, camcol, field, 'r')
     align_images(original_images, reference_image)
 
-    catalog = run_sex(reference_image)
+    catalog = run_sex(reference_image, match=match)
 
     registered_images = [
         image.replace(".fits", ".registered.fits")
         if image != reference_image else reference_image
         for image in original_images
     ]
-    result = get_cutout(catalog, registered_images, bands)
+    result = get_cutout(catalog, registered_images, bands, match=match)
 
     for image in set(original_images + registered_images):
         if os.path.exists(image):
@@ -105,25 +108,25 @@ def run_all(rerun, run, camcol, field):
     np.save(filename, result)
 
 
-def sequential_sex(df):
+def sequential_sex(df, match=False):
     """
     Sequential mode.
     """
 
     for idx, row in df.iterrows():
+        rerun, run, camcol, field = \
+            row[["rerun", "run", "camcol", "field"]].astype(int).values
         print(
-            "Procesing {0}-{1}-{2}-{3}".format(
-                row["rerun"], row["run"], row["camcol"], row["field"]
-            )
+            "Procesing {0}-{1}-{2}-{3}".format(rerun, run, camcol, field)
         )
         try:
-            run_all(row["rerun"], row["run"], row["camcol"], row["field"])
+            run_all(rerun, run, camcol, field, match=match)
             print("Successfully completed.")
         except Exception as e:
             print(e)
 
 
-def parallel_sex(df):
+def parallel_sex(df, match=False):
     """
     Parallel mode.
     """
@@ -142,13 +145,15 @@ def parallel_sex(df):
         print("Running on {} cores...\n".format(size))
 
     for idx, row in df.iterrows():
+        rerun, run, camcol, field = \
+            row[["rerun", "run", "camcol", "field"]].astype(int).values
         print(
             "Core {0}: Procesing {1}-{2}-{3}-{4}".format(
-                rank, row["rerun"], row["run"], row["camcol"], row["field"]
+                rank, rerun, run, camcol, field
             )
         )
         try:
-            run_all(row["rerun"], row["run"], row["camcol"], row["field"])
+            run_all(rerun, run, camcol, field, match=match)
             print("Core {}: Successfully completed.".format(rank))
         except Exception as e:
             print("Core {}: {}".format(rank, e))

@@ -25,6 +25,10 @@ def main(args=None):
             df = sdss_fields("fetch.csv")
             parallel_sex(df)
 
+    elif args[0] == "sequential" and args[1] == "match":
+        df = sdss_fields("match.csv")
+        sequential_sex(df, match=True)
+
     elif args[0] == "sequential":
         if os.path.exists("fetch.csv"):
             df = sdss_fields("fetch.csv")

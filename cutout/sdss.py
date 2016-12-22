@@ -46,6 +46,14 @@ def single_field_image(rerun, run, camcol, field,
     Download a single field SDSS DR12 image.
     """
 
+    files = [
+        fits_file_name(rerun, run, camcol, field, band)
+        for band in bands
+    ]
+
+    if all(os.path.exists(f) for f in files):
+        return
+
     if save_dir is None:
         save_dir = os.getcwd()
 
@@ -78,11 +86,6 @@ def single_field_image(rerun, run, camcol, field,
                 print("{}: HTTP {}".format(file_name, resp.status_code))
                 sleep(1)
 
-    files = [
-        fits_file_name(rerun, run, camcol, field, band)
-        for band in bands
-    ]
-
     if all(os.path.exists(f) for f in files):
         return
     else:
@@ -98,7 +101,12 @@ def sdss_fields(filename, shuffle=True):
     df = pd.read_csv(
         filename,
         header=0,
-        dtype={"rerun": np.int, "run": np.int, "camcol": np.int, "field": np.int}
+        dtype={
+            "rerun": np.uint16,
+            "run": np.uint16,
+            "camcol": np.uint16,
+            "field": np.uint16
+        }
     )
     if shuffle:
         df = df.sample(frac=1).reset_index(drop=True)
@@ -173,10 +181,13 @@ def radec_to_pixel(filename):
     result = df.copy()
 
     for idx, row in df.iterrows():
-        px, py = single_radec_to_pixel(
-            row["rerun"], row["run"], row["camcol"], row["field"],
-            row["ra"], row["dec"]
-        )
+
+        rerun, run, camcol, field = \
+            row[["rerun", "run", "camcol", "field"]].astype(int).values
+        ra, dec = row[["ra", "dec"]].values
+
+        px, py = single_radec_to_pixel(rerun, run, camcol, field, ra, dec)
+
         result.loc[idx, "xpixel"] = px
         result.loc[idx, "ypixel"] = py
 
@@ -196,17 +207,16 @@ def write_assoc_list(filename):
 
     for idx, row in df.iterrows():
 
-        list_file = fits_file_name(
-            df.loc[idx, "rerun"],
-            df.loc[idx, "run"],
-            df.loc[idx, "camcol"],
-            df.loc[idx, "field"],
-            'r'
-        ).replace(".fits", ".list")
+        rerun, run, camcol, field = \
+            row[["rerun", "run", "camcol", "field"]].astype(int).values
+
+        fits_file = fits_file_name(rerun, run, camcol, field)
+        list_file = fits_file.replace(".fits", ".list")
+
         with open(list_file, 'a') as fout:
             fout.write(
-                "{} {} {}\n".format(
-                    idx, df.loc[idx, "xpixel"], df.loc[idx, "ypixel"]
+                "{0} {1} {2}\n".format(
+                    idx, np.round(row["xpixel"]), np.round(row["ypixel"])
                 )
             )
 

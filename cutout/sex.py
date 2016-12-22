@@ -20,6 +20,12 @@ def run_sex(filename, match=False):
     if match:
         write_assoc_param()
         list_file = filename.replace(".fits", ".list")
+        match_list = pd.read_csv(
+            list_file,
+            sep="\s+",
+            index_col=0,
+            names=["XPIXEL", "YPIXEL"]
+        )
 
     with open("default.sex", "r") as default_sex:
         with open(config_file, "w") as outfile:
@@ -50,6 +56,8 @@ def run_sex(filename, match=False):
     )
 
     catalog["FILE"] = filename
+    catalog["XPIXEL"] = match_list.loc[catalog["VECTOR_ASSOC"], "XPIXEL"].values
+    catalog["YPIXEL"] = match_list.loc[catalog["VECTOR_ASSOC"], "YPIXEL"].values
 
     os.remove(config_file)
     os.remove(catalog_name)
@@ -94,7 +102,7 @@ def write_assoc_param(filename="default.param"):
 
     with open(filename, "a") as f:
         f.write(
-            "#VECTOR_ASSOC(1)          #ASSOCiated parameter vector"
+            "VECTOR_ASSOC(1)          #ASSOCiated parameter vector"
         )
 
     return None
