@@ -5,7 +5,7 @@ import shutil
 import subprocess
 
 
-def run_sex(filename, match=False):
+def run_sex(filename, remove=True):
     """
     Runs SExtractor.
     """
@@ -17,16 +17,6 @@ def run_sex(filename, match=False):
     config_file = filename.replace(".fits", ".sex")
     catalog_name = filename.replace(".fits", ".cat")
 
-    if match:
-        write_assoc_param()
-        list_file = filename.replace(".fits", ".list")
-        match_list = pd.read_csv(
-            list_file,
-            sep="\s+",
-            index_col=0,
-            names=["XPIXEL", "YPIXEL"]
-        )
-
     with open("default.sex", "r") as default_sex:
         with open(config_file, "w") as outfile:
             for line in default_sex:
@@ -35,12 +25,6 @@ def run_sex(filename, match=False):
                      "CATALOG_NAME     {}".format(catalog_name),
                      line
                  )
-                 if match:
-                    line = re.sub(
-                        r"^ASSOC_NAME\s+sky.list",
-                        "ASSOC_NAME       {}".format(list_file),
-                        line
-                    )
                  outfile.write(line)
     
     subprocess.call(["sex", "-c", config_file, filename])
@@ -56,11 +40,10 @@ def run_sex(filename, match=False):
     )
 
     catalog["FILE"] = filename
-    catalog["XPIXEL"] = match_list.loc[catalog["VECTOR_ASSOC"], "XPIXEL"].values
-    catalog["YPIXEL"] = match_list.loc[catalog["VECTOR_ASSOC"], "YPIXEL"].values
 
-    os.remove(config_file)
-    os.remove(catalog_name)
+    if remove:
+        os.remove(config_file)
+        os.remove(catalog_name)
 
     return catalog
 
@@ -94,16 +77,6 @@ def write_default_param(filename="default.param"):
 
     with open(filename, "w") as f:
         f.write(default_param)
-
-    return None
-
-
-def write_assoc_param(filename="default.param"):
-
-    with open(filename, "a") as f:
-        f.write(
-            "VECTOR_ASSOC(1)          #ASSOCiated parameter vector"
-        )
 
     return None
 

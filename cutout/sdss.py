@@ -136,7 +136,7 @@ def read_match_csv(filename):
     """
 
     dtype = {
-        "objID": "object",
+        "objID": np.uint64,
         "ra": np.float,
         "dec": np.float,
         "rerun": np.uint16,
@@ -167,16 +167,14 @@ def single_radec_to_pixel(rerun, run, camcol, field, ra, dec):
     return px.item(), py.item()
 
 
-def radec_to_pixel(filename):
+def df_radec_to_pixel(df):
     """
-    Reads a CSV file with ra, dec columns and converts radec to pixel positions.
+    Takes a pandas dataframe with ra, dec columns and converts radec to pixel positions.
 
     Paramters
     ---------
-    filename: match.csv
+    df: A pandas dataframe
     """
-
-    df = read_match_csv(filename)
 
     result = df.copy()
 
@@ -188,35 +186,23 @@ def radec_to_pixel(filename):
 
         px, py = single_radec_to_pixel(rerun, run, camcol, field, ra, dec)
 
-        result.loc[idx, "xpixel"] = px
-        result.loc[idx, "ypixel"] = py
+        result.loc[idx, "XPEAK_IMAGE"] = px
+        result.loc[idx, "YPEAK_IMAGE"] = py
 
     return result
 
 
-def write_assoc_list(filename):
+def csv_radec_to_pixel(filename):
     """
-    Write .list file by matching objects.
+    Reads a CSV file with ra, dec columns and converts radec to pixel positions.
 
-    Parameters
-    ----------
+    Paramters
+    ---------
     filename: match.csv
     """
 
-    df = radec_to_pixel(filename)
+    df = read_match_csv(filename)
+    result = df_radec_to_pixel(df)
 
-    for idx, row in df.iterrows():
-
-        rerun, run, camcol, field = \
-            row[["rerun", "run", "camcol", "field"]].astype(int).values
-
-        fits_file = fits_file_name(rerun, run, camcol, field)
-        list_file = fits_file.replace(".fits", ".list")
-
-        with open(list_file, 'a') as fout:
-            fout.write(
-                "{0} {1} {2}\n".format(
-                    idx, np.round(row["xpixel"]), np.round(row["ypixel"])
-                )
-            )
+    return result
 

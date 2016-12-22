@@ -19,9 +19,6 @@ def align_images(images, reference, save_dir=None):
     None
     """
 
-    header = reference.replace(".fits", ".header")
-    mw.commands.mGetHdr(reference, header)
-
     if save_dir is None:
         save_dir = os.getcwd()
 
@@ -29,6 +26,9 @@ def align_images(images, reference, save_dir=None):
         os.path.join(save_dir, image.replace(".fits", ".registered.fits"))
         for image in images
     ]
+
+    header = reference.replace(".fits", ".header")
+    mw.commands.mGetHdr(reference, header)
 
     mw.reproject(
         images, registered_path,

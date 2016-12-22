@@ -4,11 +4,11 @@ import pandas as pd
 import numpy as np
 from astropy.io import fits
 from cutout.utils import nanomaggie_to_luptitude, align_images
-from cutout.sdss import fits_file_name, single_field_image
+from cutout.sdss import fits_file_name, single_field_image, df_radec_to_pixel
 from cutout.sex import run_sex
 
 
-def get_cutout(catalog, images, bands, size=64, match=False):
+def get_cutout(catalog, images, bands, size=64):
     """
     Takes a pandas dataframe with columns 'XPEAK_IMAGE' and 'YPEAK_IMAGE'
     and saves cutout images in save_dir.
@@ -29,10 +29,7 @@ def get_cutout(catalog, images, bands, size=64, match=False):
 
     for irow, row in catalog.iterrows():
 
-        if match:
-            xpeak, ypeak = row[["XPIXEL", "YPIXEL"]].values
-        else:
-            xpeak, ypeak = row[["XPEAK_IMAGE", "YPEAK_IMAGE"]].values
+        xpeak, ypeak = row[["XPEAK_IMAGE", "YPEAK_IMAGE"]].values
 
         reference = row["FILE"]
 
@@ -63,15 +60,16 @@ def get_cutout(catalog, images, bands, size=64, match=False):
             cut_out = nanomaggie_to_luptitude(cut_out, band)
             array[irow, iband, :, :] = cut_out
 
-    return array
+    return array.astype(np.float32)
 
 
-def run_all(rerun, run, camcol, field, match=False):
+def fetch_align(rerun, run, camcol, field, bands=None, remove=True):
     """
-    Run fetch, align, extract in a single field.
+    Run fetch and align (but not extract) in a single field.
     """
 
-    bands = [b for b in "ugriz"]
+    if bands is None:
+        bands = [b for b in "ugriz"]
 
     try:
         single_field_image(rerun, run, camcol, field)
@@ -86,21 +84,43 @@ def run_all(rerun, run, camcol, field, match=False):
     reference_image = fits_file_name(rerun, run, camcol, field, 'r')
     align_images(original_images, reference_image)
 
-    catalog = run_sex(reference_image, match=match)
-
     registered_images = [
         image.replace(".fits", ".registered.fits")
         if image != reference_image else reference_image
         for image in original_images
     ]
-    result = get_cutout(catalog, registered_images, bands, match=match)
 
-    for image in set(original_images + registered_images):
-        if os.path.exists(image):
-            os.remove(image)
+    if remove:
+        images = [i for i in original_images if i != reference_image]
+        for image in images:
+            if os.path.exists(image):
+                os.remove(image)
 
-    filename = fits_file_name(rerun, run, camcol, field, 'r')
-    filename = os.path.join("result", filename.replace(".fits", ".npy"))
+    return registered_images
+
+
+def fetch_align_sex(rerun, run, camcol, field,
+    bands=None, reference_band='r', remove=True):
+    """
+    Run fetch, align, and sex in a single field.
+    """
+
+    if bands is None:
+        bands = [b for b in "ugriz"]
+
+    registered_images = fetch_align(rerun, run, camcol, field, remove=remove)
+    reference_image = [i for i in registered_images if 'registered' not in i][0]
+
+    catalog = run_sex(reference_image, remove=remove)
+
+    result = get_cutout(catalog, registered_images, bands)
+
+    if remove:
+        for image in registered_images:
+            if os.path.exists(image):
+                os.remove(image)
+
+    filename = os.path.join("result", reference_image.replace(".fits", ".npy"))
 
     if not os.path.exists("result"):
         os.makedirs("result")
@@ -108,7 +128,86 @@ def run_all(rerun, run, camcol, field, match=False):
     np.save(filename, result)
 
 
-def sequential_sex(df, match=False):
+def fetch_align_match(df, filename,
+    bands=None, size=64, remove=True, save_dir="result"):
+    """
+    Match.
+    """
+    
+    if bands is None:
+        bands = [b for b in "ugriz"]
+
+    groups = df.groupby(["rerun", "run", "camcol", "field"]).groups
+
+    dtype = [
+        ("objID", "u8"), # unsigned integer
+        ("image", "f4", (len(bands), size, size)) # 4-byte float
+    ]
+    if "class" in df.columns:
+        dtype += [("class", "U8")] # 8-character unicode string
+
+    if "z" in df.columns:
+        dtype += [("z", "f4")] # 4-byte float
+       
+    result = np.zeros(len(df), dtype=dtype)
+
+    count = 0
+    for field, index in groups.items():
+
+        print("{0}-{1}-{2}-{3}: Processing...".format(*field))
+        try:
+            registered_images = fetch_align(*field, remove=remove)
+        except Exception as e:
+            print("{0}-{1}-{2}-{3}: {4}".format(*field, e))
+
+        reference_image = [i for i in registered_images if 'registered' not in i][0]
+
+        catalog = df_radec_to_pixel(df.loc[index, :])
+        catalog = catalog.reset_index(drop=True)
+        catalog["FILE"] = reference_image
+
+        cutout = get_cutout(catalog, registered_images, bands)
+
+        result[count: count + len(catalog)]["objID"] = catalog["objID"]
+        result[count: count + len(catalog)]["image"] = cutout
+
+        if "class" in catalog.columns:
+            result[count: count + len(catalog)]["class"] = catalog["class"]
+        if "z" in catalog.columns:
+            result[count: count + len(catalog)]["z"] = catalog["z"]
+
+        count += len(catalog)
+
+        if remove:
+            for image in registered_images:
+                if os.path.exists(image):
+                    os.remove(image)
+
+        print("{0}-{1}-{2}-{3}: Sucessfully completed.".format(*field))
+
+    result = result[:count]
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    np.save(os.path.join(save_dir, filename), result)
+
+    return None
+
+
+def sequential_match(df, remove=True):
+    """
+    Sequential mode.
+    """
+
+    filename = "match.npy"
+
+    fetch_align_match(df, filename, remove=remove)
+
+    return None
+
+
+def sequential_sex(df, remove=True):
     """
     Sequential mode.
     """
@@ -117,16 +216,20 @@ def sequential_sex(df, match=False):
         rerun, run, camcol, field = \
             row[["rerun", "run", "camcol", "field"]].astype(int).values
         print(
-            "Procesing {0}-{1}-{2}-{3}".format(rerun, run, camcol, field)
+            "{0}-{1}-{2}-{3}: Processing...".format(rerun, run, camcol, field)
         )
         try:
-            run_all(rerun, run, camcol, field, match=match)
-            print("Successfully completed.")
+            fetch_align_sex(rerun, run, camcol, field, remove=remove)
+            print(
+                "{0}-{1}-{2}-{3}: Sucessfully completed.".format(rerun, run, camcol, field)
+            )
         except Exception as e:
             print(e)
 
+    return None
 
-def parallel_sex(df, match=False):
+
+def parallel_sex(df, remove=True):
     """
     Parallel mode.
     """
@@ -148,13 +251,22 @@ def parallel_sex(df, match=False):
         rerun, run, camcol, field = \
             row[["rerun", "run", "camcol", "field"]].astype(int).values
         print(
-            "Core {0}: Procesing {1}-{2}-{3}-{4}".format(
+            "Core {0}, {1}-{2}-{3}-{4}: Processing...".format(
                 rank, rerun, run, camcol, field
             )
         )
         try:
-            run_all(rerun, run, camcol, field, match=match)
-            print("Core {}: Successfully completed.".format(rank))
+            fetch_align_sex(rerun, run, camcol, field, remove=remove)
+            print(
+                "Core {0}, {1}-{2}-{3}-{4}: Sucessfully completed.".format(
+                    rank, rerun, run, camcol, field
+                )
+            )
         except Exception as e:
-            print("Core {}: {}".format(rank, e))
+            print(
+                "Core {0}, {1}-{2}-{3}-{4}: {}".format(
+                    rank, rerun, run, camcol, field, e
+                )
+            )
 
+    return None

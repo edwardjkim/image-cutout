@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='cutout',
-    version='0.0.1',
+    version='0.1.0',
     packages=['cutout'],
     entry_points={
         'console_scripts': [

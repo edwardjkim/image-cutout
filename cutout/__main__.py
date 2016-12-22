@@ -4,7 +4,9 @@ import numpy as np
 from cutout.sdss import sdss_fields, single_field_image
 from cutout.utils import align_images
 from cutout.sex import run_sex
-from cutout.create import get_cutout, sequential_sex, parallel_sex
+from cutout.create import (
+    get_cutout, sequential_sex, parallel_sex, sequential_match
+)
 
 
 def main(args=None):
@@ -25,9 +27,15 @@ def main(args=None):
             df = sdss_fields("fetch.csv")
             parallel_sex(df)
 
+    elif args[0] == "sequential" and len(args[1:]) == 0:
+        sys.stderr.write(
+            "Usage: cutout sequential <subcommand>\n"
+            "Valid subcommands are: match, sex\n"
+        )
+   
     elif args[0] == "sequential" and args[1] == "match":
         df = sdss_fields("match.csv")
-        sequential_sex(df, match=True)
+        sequential_match(df, remove=False)
 
     elif args[0] == "sequential":
         if os.path.exists("fetch.csv"):
