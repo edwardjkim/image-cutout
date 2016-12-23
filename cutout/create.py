@@ -1,5 +1,4 @@
 import os
-import shutil
 import sys
 import pandas as pd
 import numpy as np
@@ -294,12 +293,20 @@ def write_group_csv(filename, save_dir="temp", skip_exists=True):
     return group_list
 
 
-def clean_group_temp(save_dir="temp"):
+def check_npy_sucess(filename, save_dir="result"):
     """
     """
 
-    if os.path.exists(save_dir):
-        shutil.rmtree(save_dir)
+    return os.path.exists(os.path.join(save_dir, filename))
+
+
+def clean_group_temp(filename, save_dir="temp"):
+    """
+    """
+
+    f = os.path.join(save_dir, filename)
+    if os.path.exists(f):
+        os.remove(f)
 
 
 def parallel_match(filename, remove=True, chunksize=1000):
@@ -328,7 +335,7 @@ def parallel_match(filename, remove=True, chunksize=1000):
 
         npy_file = group.replace(".temp", ".npy")
 
-        if os.path.exists(os.path.join("result", npy_file)):
+        if check_npy_success(group):
             continue
 
         chunk = read_match_csv(os.path.join("temp", group))
@@ -352,7 +359,8 @@ def parallel_match(filename, remove=True, chunksize=1000):
                 "Core {0}: {1}".format(rank, e)
             )
 
-    clean_group_temp()
+        if check_npy_sucess(group):
+            clean_group_temp(group)
 
     return None
 
