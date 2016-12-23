@@ -1,10 +1,13 @@
 import os
+import shutil
 import sys
 import pandas as pd
 import numpy as np
 from astropy.io import fits
 from cutout.utils import nanomaggie_to_luptitude, align_images
-from cutout.sdss import fits_file_name, single_field_image, df_radec_to_pixel
+from cutout.sdss import (
+    fits_file_name, single_field_image, df_radec_to_pixel, read_match_csv
+)
 from cutout.sex import run_sex
 
 
@@ -63,6 +66,30 @@ def get_cutout(catalog, images, bands, size=64):
     return array.astype(np.float32)
 
 
+def get_registered_images(rerun, run, camcol, field, bands=None):
+    """
+    Returns a list of registed image FITS files.
+    """
+
+    if bands is None:
+        bands = [b for b in "ugriz"]
+
+    original_images = [
+        fits_file_name(rerun, run, camcol, field, band)
+        for band in bands
+    ]
+
+    reference_image = fits_file_name(rerun, run, camcol, field, 'r')
+
+    registered_images = [
+        image.replace(".fits", ".registered.fits")
+        if image != reference_image else reference_image
+        for image in original_images
+    ]
+
+    return registered_images
+
+
 def fetch_align(rerun, run, camcol, field, bands=None, remove=True):
     """
     Run fetch and align (but not extract) in a single field.
@@ -71,24 +98,27 @@ def fetch_align(rerun, run, camcol, field, bands=None, remove=True):
     if bands is None:
         bands = [b for b in "ugriz"]
 
-    try:
-        single_field_image(rerun, run, camcol, field)
-    except:
-        raise
-
     original_images = [
         fits_file_name(rerun, run, camcol, field, band)
         for band in bands
     ]
 
     reference_image = fits_file_name(rerun, run, camcol, field, 'r')
-    align_images(original_images, reference_image)
 
     registered_images = [
         image.replace(".fits", ".registered.fits")
         if image != reference_image else reference_image
         for image in original_images
     ]
+
+    if not all(os.path.exists(i) for i in registered_images):
+
+        try:
+            single_field_image(rerun, run, camcol, field)
+            align_images(original_images, reference_image)
+            print("{}-{}-{}-{}: Aligned.".format(rerun, run, camcol, field))
+        except:
+            raise
 
     if remove:
         images = [i for i in original_images if i != reference_image]
@@ -152,57 +182,177 @@ def fetch_align_match(df, filename,
     result = np.zeros(len(df), dtype=dtype)
 
     count = 0
+
     for field, index in groups.items():
 
-        print("{0}-{1}-{2}-{3}: Processing...".format(*field))
         try:
             registered_images = fetch_align(*field, remove=remove)
+
+            reference_image = [i for i in registered_images if 'registered' not in i][0]
+
+            catalog = df_radec_to_pixel(df.loc[index, :])
+            catalog = catalog.reset_index(drop=True)
+            catalog["FILE"] = reference_image
+
+            cutout = get_cutout(catalog, registered_images, bands)
+
+            result[count: count + len(catalog)]["objID"] = catalog["objID"]
+            result[count: count + len(catalog)]["image"] = cutout
+
+            if "class" in catalog.columns:
+                result[count: count + len(catalog)]["class"] = catalog["class"]
+            if "z" in catalog.columns:
+                result[count: count + len(catalog)]["z"] = catalog["z"]
+
+            count += len(catalog)
+
+            print("{0}-{1}-{2}-{3}: Sucessfully completed.".format(*field))
+
         except Exception as e:
-            print("{0}-{1}-{2}-{3}: {4}".format(*field, e))
-
-        reference_image = [i for i in registered_images if 'registered' not in i][0]
-
-        catalog = df_radec_to_pixel(df.loc[index, :])
-        catalog = catalog.reset_index(drop=True)
-        catalog["FILE"] = reference_image
-
-        cutout = get_cutout(catalog, registered_images, bands)
-
-        result[count: count + len(catalog)]["objID"] = catalog["objID"]
-        result[count: count + len(catalog)]["image"] = cutout
-
-        if "class" in catalog.columns:
-            result[count: count + len(catalog)]["class"] = catalog["class"]
-        if "z" in catalog.columns:
-            result[count: count + len(catalog)]["z"] = catalog["z"]
-
-        count += len(catalog)
+            rerun, run, camcol, field_ = field
+            print(
+                "{0}-{1}-{2}-{3}: {4}".format(rerun, run, camcol, field_, e)
+            )
+            registered_image = registered_images(rerun, run, camcol, field_)
 
         if remove:
             for image in registered_images:
                 if os.path.exists(image):
                     os.remove(image)
 
-        print("{0}-{1}-{2}-{3}: Sucessfully completed.".format(*field))
-
     result = result[:count]
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
+
 
     np.save(os.path.join(save_dir, filename), result)
 
     return None
 
 
-def sequential_match(df, remove=True):
+def sequential_match(filename, remove=True):
     """
     Sequential mode.
     """
 
-    filename = "match.npy"
+    groups = write_group_csv(filename)
+        
+    print("Sequential mode: Processing {} fields...\n".format(len(groups)))
 
-    fetch_align_match(df, filename, remove=remove)
+    for group in groups:
+
+        npy_file = group.replace(".temp", ".npy")
+        if os.path.exists(os.path.join("result", npy_file)):
+            continue
+
+        chunk = read_match_csv(os.path.join("temp", group))
+        field = group.replace("frame-", "").replace(".temp", "")
+
+        print(
+            "{}: Processing {} object(s)...".format(field, len(chunk))
+        )
+        
+        npy_file = group.replace(".temp", ".npy")
+
+        try:
+            fetch_align_match(chunk, npy_file, remove=remove)
+            print("{}: Sucessfully completed.".format(field))
+        except Exception as e:
+            raise
+
+
+    clean_group_temp()
+
+    return None
+
+
+def write_group_csv(filename, save_dir="temp", skip_exists=True):
+    """
+    """
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    df = read_match_csv(filename)
+    groups = df.groupby(["rerun", "run", "camcol", "field"]).groups
+
+    group_list = []
+
+    for field, index in groups.items():
+
+        rerun, run, camcol, field_ = field
+        fout = "frame-{}-{}-{}-{}.temp".format(rerun, run, camcol, field_)
+
+        file_path = os.path.join(save_dir, fout)
+        if skip_exists and os.path.exists(file_path):
+            continue
+
+        df.loc[index, :].to_csv(file_path)
+        group_list.append(fout)
+
+    return group_list
+
+
+def clean_group_temp(save_dir="temp"):
+    """
+    """
+
+    if os.path.exists(save_dir):
+        shutil.rmtree(save_dir)
+
+
+def parallel_match(filename, remove=True, chunksize=1000):
+    """
+    Parallel mode.
+    """
+
+    from mpi4py import MPI
+
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+
+    if rank == 0:
+        groups = write_group_csv(filename)
+        print("Parallel mode: Processing {} fields on {} cores...\n".format(len(groups), size))
+    else:
+        groups = None
+
+    groups = comm.bcast(groups, root=0)
+  
+    start = len(groups) // size * rank
+    end = len(groups) // size * (rank + 1)
+
+    for group in groups[start: end]:
+
+        npy_file = group.replace(".temp", ".npy")
+
+        if os.path.exists(os.path.join("result", npy_file)):
+            continue
+
+        chunk = read_match_csv(os.path.join("temp", group))
+
+        field = group.replace("frame-", "").replace(".temp", "")
+
+        print(
+            "{}: Processing {} object(s) on core {}..."
+            "".format(field, len(chunk), rank)
+        )
+        
+        npy_file = group.replace(".temp", ".npy")
+
+        try:
+            fetch_align_match(chunk, npy_file, remove=remove)
+            print(
+                "{0}: Sucessfully completed on core {1}.".format(field, rank)
+            )
+        except Exception as e:
+            print(
+                "Core {0}: {1}".format(rank, e)
+            )
+
+    clean_group_temp()
 
     return None
 

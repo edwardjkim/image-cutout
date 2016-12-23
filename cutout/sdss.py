@@ -127,13 +127,16 @@ def fetch_sdss(filename):
     return None
 
 
-def read_match_csv(filename):
+def read_match_csv(filename, skiprows=None, chunksize=None):
     """
     Reads a CSV file with a list of objects to be matched.
 
     The file should have the following columns:
     objID,ra,dec,rerun,run,camcol,field
     """
+
+    if skiprows is not None:
+        skiprows = (1, skiprows + 1)
 
     dtype = {
         "objID": np.uint64,
@@ -145,7 +148,13 @@ def read_match_csv(filename):
         "field": np.uint16
     }
 
-    df = pd.read_csv(filename, dtype=dtype)
+    df = pd.read_csv(
+        filename,
+        dtype=dtype,
+        header=0,
+        skiprows=skiprows,
+        chunksize=chunksize
+    )
 
     return df
 

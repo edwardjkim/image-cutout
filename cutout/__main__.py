@@ -1,11 +1,13 @@
 import os
 import sys
 import numpy as np
-from cutout.sdss import sdss_fields, single_field_image
+from cutout.sdss import sdss_fields, single_field_image, read_match_csv
 from cutout.utils import align_images
 from cutout.sex import run_sex
 from cutout.create import (
-    get_cutout, sequential_sex, parallel_sex, sequential_match
+    get_cutout,
+    sequential_sex, parallel_sex,
+    sequential_match, parallel_match
 )
 
 
@@ -22,10 +24,12 @@ def main(args=None):
         )
         return 1
 
-    if args[0] == "parallel":
-        if os.path.exists("fetch.csv"):
-            df = sdss_fields("fetch.csv")
-            parallel_sex(df)
+    if args[0] == "parallel" and args[1] == "match":
+        if len(args[2:]) == 0:
+            sys.stderr.write(
+                "Usage: cutout sequential match <CSV file>\n"
+            )
+        parallel_match(args[2])
 
     elif args[0] == "sequential" and len(args[1:]) == 0:
         sys.stderr.write(
@@ -33,9 +37,18 @@ def main(args=None):
             "Valid subcommands are: match, sex\n"
         )
    
+    elif args[0] == "parallel":
+        if os.path.exists("fetch.csv"):
+            df = sdss_fields("fetch.csv")
+            parallel_sex(df)
+
+
     elif args[0] == "sequential" and args[1] == "match":
-        df = sdss_fields("match.csv")
-        sequential_match(df, remove=False)
+        if len(args[2:]) == 0:
+            sys.stderr.write(
+                "Usage: cutout sequential match <CSV file>\n"
+            )
+        sequential_match(args[2])
 
     elif args[0] == "sequential":
         if os.path.exists("fetch.csv"):
