@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import pandas as pd
 import numpy as np
@@ -260,8 +261,8 @@ def sequential_match(filename, remove=True):
         except Exception as e:
             raise
 
-
-    clean_group_temp()
+    if remove:
+        clean_group_temp()
 
     return None
 
@@ -282,31 +283,30 @@ def write_group_csv(filename, save_dir="temp", skip_exists=True):
 
         rerun, run, camcol, field_ = field
         fout = "frame-{}-{}-{}-{}.temp".format(rerun, run, camcol, field_)
+        group_list.append(fout)
 
         file_path = os.path.join(save_dir, fout)
         if skip_exists and os.path.exists(file_path):
             continue
-
-        df.loc[index, :].to_csv(file_path)
-        group_list.append(fout)
+        else:
+            df.loc[index, :].to_csv(file_path)
 
     return group_list
 
 
-def check_npy_sucess(filename, save_dir="result"):
+def check_npy_success(filename, save_dir="result"):
     """
     """
 
     return os.path.exists(os.path.join(save_dir, filename))
 
 
-def clean_group_temp(filename, save_dir="temp"):
+def clean_group_temp(save_dir="temp"):
     """
     """
 
-    f = os.path.join(save_dir, filename)
-    if os.path.exists(f):
-        os.remove(f)
+    if os.path.exists(save_dir):
+        shutil.rmtree(save_dir)
 
 
 def parallel_match(filename, remove=True, chunksize=1000):
@@ -359,8 +359,8 @@ def parallel_match(filename, remove=True, chunksize=1000):
                 "Core {0}: {1}".format(rank, e)
             )
 
-        if check_npy_sucess(group):
-            clean_group_temp(group)
+    if remove and all(check_npy_success(group) for group in groups):
+        clean_group_temp()
 
     return None
 
