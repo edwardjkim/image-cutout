@@ -1,4 +1,5 @@
 import os
+import random
 import shutil
 import sys
 import pandas as pd
@@ -231,7 +232,7 @@ def fetch_align_match(df, filename,
     return None
 
 
-def sequential_match(filename, remove=True):
+def sequential_match(filename, shuffle=True, remove=True):
     """
     Sequential mode.
     """
@@ -267,14 +268,14 @@ def sequential_match(filename, remove=True):
     return None
 
 
-def write_group_csv(filename, save_dir="temp", skip_exists=True):
+def write_group_csv(filename, shuffle=True, save_dir="temp", skip_exists=True):
     """
     """
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    df = read_match_csv(filename)
+    df = read_match_csv(filename, shuffle=shuffle)
     groups = df.groupby(["rerun", "run", "camcol", "field"]).groups
 
     group_list = []
@@ -290,6 +291,9 @@ def write_group_csv(filename, save_dir="temp", skip_exists=True):
             continue
         else:
             df.loc[index, :].to_csv(file_path)
+
+    if shuffle:
+        random.shuffle(group_list)
 
     return group_list
 
