@@ -127,7 +127,7 @@ def fetch_sdss(filename):
     return None
 
 
-def read_match_csv(filename, skiprows=None, chunksize=None):
+def read_match_csv(filename, shuffle=True, skiprows=None, chunksize=None):
     """
     Reads a CSV file with a list of objects to be matched.
 
@@ -155,6 +155,9 @@ def read_match_csv(filename, skiprows=None, chunksize=None):
         skiprows=skiprows,
         chunksize=chunksize
     )
+
+    if shuffle:
+        df = df.sample(frac=1).reset_index(drop=True)
 
     return df
 

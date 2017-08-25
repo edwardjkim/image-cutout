@@ -275,7 +275,7 @@ def write_group_csv(filename, shuffle=True, save_dir="temp", skip_exists=True):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    df = read_match_csv(filename, shuffle=shuffle)
+    df = read_match_csv(filename)
     groups = df.groupby(["rerun", "run", "camcol", "field"]).groups
 
     group_list = []
